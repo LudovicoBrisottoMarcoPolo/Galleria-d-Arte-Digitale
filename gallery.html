@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atelier | Galleria d'Arte Immersiva</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #0a0a0f;
+            --color-accent: #a855f7;
+            --color-gold: #d4af37;
+            --ease-elastic: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: var(--color-bg);
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+        }
+        /* Custom Cursor */
+        .custom-cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--color-accent);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10000;
+            transition: transform 0.15s var(--ease-smooth),
+                        background 0.2s,
+                        width 0.2s,
+                        height 0.2s;
+            mix-blend-mode: difference;
+        }
+        .custom-cursor.hovering {
+            width: 50px;
+            height: 50px;
+            background: rgba(168, 85, 247, 0.3);
+            border-color: var(--color-gold);
+        }
+        .custom-cursor-dot {
+            position: fixed;
+            width: 6px;
+            height: 6px;
+            background: var(--color-accent);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10001;
+        }
+        /* Hyper-speed Entry Overlay */
+        #entry-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: var(--color-bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        #entry-overlay.hidden {
+            pointer-events: none;
+        }
+        .speed-lines {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+        }
+        .speed-line {
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: linear-gradient(to bottom, transparent, var(--color-accent), transparent);
+            opacity: 0;
+        }
+        .tunnel-ring {
+            position: absolute;
+            border: 2px solid var(--color-accent);
+            border-radius: 50%;
+            opacity: 0;
+        }
+        .entry-text {
+            font-family: 'Playfair Display', serif;
+            font-size: 3rem;
+            opacity: 0;
+            z-index: 10;
+            text-shadow: 0 0 30px var(--color-accent);
+        }
+        /* Main Canvas */
+        #gallery-canvas {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+        }
+        /* Ambient Particles */
+        .ambient-particle {
+            position: fixed;
+            width: 4px;
+            height: 4px;
+            background: var(--color-accent);
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0.3;
+            filter: blur(1px);
+        }
+        /* UI Overlay */
+        #ui-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        #ui-overlay.visible {
+            opacity: 1;
+        }
+        /* Navigation Hints */
+        .nav-hints {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            pointer-events: auto;
+        }
+        .nav-hint {
+            padding: 12px 24px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            transition: all 0.3s var(--ease-smooth);
+        }
+        .nav-hint:hover {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+        }
+        /* Back Button */
+        .back-btn {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            padding: 14px 28px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.3s var(--ease-elastic);
+        }
+        .back-btn:hover {
+            border-color: var(--color-accent);
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.3);
+        }
+        /* Artwork Counter */
+        .artwork-counter {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            font-family: 'Playfair Display', serif;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .artwork-counter span {
+            color: var(--color-accent);
+            font-size: 24px;
+        }
+        /* Focus Mode Overlay */
+        #focus-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            background: rgba(0, 0, 0, 0.95);
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            transition: opacity 0.5s var(--ease-smooth);
+        }
+        #focus-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .focus-artwork {
+            max-width: 80vw;
+            max-height: 70vh;
+            border: 8px solid var(--color-gold);
+            box-shadow: 0 0 60px rgba(212, 175, 55, 0.3),
+                        0 0 120px rgba(168, 85, 247, 0.2);
+            transform: scale(0.8);
+            opacity: 0;
+            transition: all 0.6s var(--ease-elastic);
+        }
+        #focus-overlay.active .focus-artwork {
+            transform: scale(1);
+            opacity: 1;
+        }
+        .focus-info {
+            text-align: center;
+            margin-top: 30px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s 0.3s var(--ease-smooth);
+        }
+        #focus-overlay.active .focus-info {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .focus-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        .focus-artist {
+            color: var(--color-accent);
+            font-size: 1rem;
+        }
+        .focus-close {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            background: transparent;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s var(--ease-elastic);
+        }
+        .focus-close:hover {
+            border-color: var(--color-accent);
+            transform: rotate(90deg) scale(1.1);
+        }
+        /* Admin Panel */
+        #admin-panel {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 400px;
+            height: 100%;
+            background: rgba(10, 10, 15, 0.98);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+            padding: 30px;
+            transition: right 0.5s var(--ease-elastic);
+            overflow-y: auto;
+        }
+        #admin-panel.open {
+            right: 0;
+        }
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .admin-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+        }
+        .admin-close {
+            width: 40px;
+            height: 40px;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .admin-close:hover {
+            border-color: var(--color-accent);
+            transform: rotate(90deg);
+        }
+        .admin-section {
+            margin-bottom: 30px;
+        }
+        .admin-label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        .admin-input {
+            width: 100%;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+        .admin-input:focus {
+            outline: none;
+            border-color: var(--color-accent);
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
+        }
+        .admin-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--color-accent), #7c3aed);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s var(--ease-elastic);
+        }
+        .admin-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px rgba(168, 85, 247, 0.4);
+        }
+        .artwork-list {
+            margin-top: 20px;
+        }
+        .artwork-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+        .artwork-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .artwork-thumb {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        .artwork-details {
+            flex: 1;
+        }
+        .artwork-name {
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .artwork-remove {
+            width: 30px;
+            height: 30px;
+            background: rgba(255, 0, 0, 0.2);
+            border: none;
+            border-radius: 50%;
+            color: #ff6b6b;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .artwork-remove:hover {
+            background: rgba(255, 0, 0, 0.4);
+            transform: scale(1.1);
+        }
+        /* Easter Egg Glow */
+        .easter-egg-glow {
+            position: fixed;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.3), transparent);
+            pointer-events: none;
+            z-index: 2;
+            opacity: 0;
+            transition: opacity 2s;
+        }
+        /* Loading Animation */
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--color-accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Animated Background Gradient */
+        .ambient-gradient {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            opacity: 0.5;
+            background: radial-gradient(ellipse at 50% 50%,
+                rgba(168, 85, 247, 0.1) 0%,
+                transparent 50%);
+            animation: gradientPulse 8s ease-in-out infinite;
+        }
+        @keyframes gradientPulse {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+        /* Instruction Toast */
+        .instruction-toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 16px 32px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 50px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            opacity: 0;
+            transition: all 0.5s var(--ease-elastic);
+            z-index: 200;
+        }
+        .instruction-toast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        /* Responsive */
+        @media (max-width: 768px) {
+            .entry-text {
+                font-size: 2rem;
+            }
+            #admin-panel {
+                width: 100%;
+                right: -100%;
+            }
+            .focus-artwork {
+                max-width: 95vw;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Custom Cursor -->
+    <div class="custom-cursor" id="cursor"></div>
+    <div class="custom-cursor-dot" id="cursor-dot"></div>
+    <!-- Entry Overlay with Hyper-speed Effect -->
+    <div id="entry-overlay">
+        <div class="speed-lines" id="speed-lines"></div>
+        <p class="entry-text" id="entry-text">Benvenuto nell'Atelier</p>
+    </div>
+    <!-- Ambient Gradient Background -->
+    <div class="ambient-gradient"></div>
+    <!-- Three.js Canvas -->
+    <canvas id="gallery-canvas"></canvas>
+    <!-- Easter Egg Glow -->
+    <div class="easter-egg-glow" id="easter-glow"></div>
+    <!-- UI Overlay -->
+    <div id="ui-overlay">
+        <button class="back-btn" id="back-btn">← Torna alle Gallerie</button>
+
+        <div class="artwork-counter">
+            Opere: <span id="artwork-count">0</span>
+        </div>
+        <div class="nav-hints">
+            <div class="nav-hint">🖱️ Trascina per esplorare</div>
+            <div class="nav-hint">👆 Clicca su un'opera per ingrandire</div>
+            <div class="nav-hint">⌨️ Premi A per Admin</div>
+        </div>
+    </div>
+    <!-- Focus Mode Overlay -->
+    <div id="focus-overlay">
+        <button class="focus-close" id="focus-close">×</button>
+        <img class="focus-artwork" id="focus-image" src="" alt="Artwork">
+        <div class="focus-info">
+            <h2 class="focus-title" id="focus-title"></h2>
+            <p class="focus-artist" id="focus-artist"></p>
+        </div>
+    </div>
+    <!-- Admin Panel -->
+    <div id="admin-panel">
+        <div class="admin-header">
+            <h3 class="admin-title">🎨 Gestione Opere</h3>
+            <button class="admin-close" id="admin-close">×</button>
+        </div>
+        <div class="admin-section">
+            <p class="admin-label">Aggiungi Nuova Opera</p>
+            <input type="text" class="admin-input" id="artwork-url" placeholder="URL dell'immagine...">
+            <input type="text" class="admin-input" id="artwork-title" placeholder="Titolo dell'opera...">
+            <input type="text" class="admin-input" id="artwork-artist" placeholder="Nome dell'artista...">
+            <button class="admin-btn" id="add-artwork">+ Aggiungi all'Atelier</button>
+        </div>
+        <div class="admin-section">
+            <p class="admin-label">Opere in Galleria</p>
+            <div class="artwork-list" id="artwork-list"></div>
+        </div>
+    </div>
+    <!-- Instruction Toast -->
+    <div class="instruction-toast" id="instruction-toast">
+        Esplora la galleria muovendo il mouse
+    </div>
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            roomWidth: 30,
+            roomHeight: 10,
+            roomDepth: 30,
+            artworkSpacing: 5,
+            cameraFOV: 75,
+            entryDuration: 3000,
+            easterEggDelay: 5000
+        };
+        // Default artworks
+        let artworks = [
+            {
+                url: 'https://images.unsplash.com/photo-1541961017774-22349e4a1262?w=800',
+                title: 'Tramonto Astratto',
+                artist: 'Maria Rossi'
+            },
+            {
+                url: 'https://images.unsplash.com/photo-1549289524-06cf8837ace5?w=800',
+                title: 'Oceano di Emozioni',
+                artist: 'Luca Bianchi'
+            },
+            {
+                url: 'https://images.unsplash.com/photo-1578301978693-85fa9c0320b9?w=800',
+                title: 'Geometrie Urbane',
+                artist: 'Sofia Verdi'
+            },
+            {
+                url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800',
+                title: 'Riflessi Dorati',
+                artist: 'Marco Neri'
+            },
+            {
+                url: 'https://images.unsplash.com/photo-1547826039-bfc35e0f1ea8?w=800',
+                title: 'Natura Morta Moderna',
+                artist: 'Giulia Ferrari'
+            },
+            {
+                url: 'https://images.unsplash.com/photo-1482160549825-59d1b23cb208?w=800',
+                title: 'Esplosione Cromatica',
+                artist: 'Andrea Conti'
+            }
+        ];
+        // Load saved artworks
+        const savedArtworks = localStorage.getItem('galleryArtworks');
+        if (savedArtworks) {
+            artworks = JSON.parse(savedArtworks);
+        }
+        // ============================================
+        // CUSTOM CURSOR
+        // ============================================
+        class CustomCursor {
+            constructor() {
+                this.cursor = document.getElementById('cursor');
+                this.cursorDot = document.getElementById('cursor-dot');
+                this.mouseX = window.innerWidth / 2;
+                this.mouseY = window.innerHeight / 2;
+                this.cursorX = this.mouseX;
+                this.cursorY = this.mouseY;
+
+                document.addEventListener('mousemove', (e) => {
+                    this.mouseX = e.clientX;
+                    this.mouseY = e.clientY;
+                });
+                this.animate();
+            }
+            setHovering(isHovering) {
+                this.cursor.classList.toggle('hovering', isHovering);
+            }
+            animate() {
+                // Smooth follow
+                this.cursorX += (this.mouseX - this.cursorX) * 0.15;
+                this.cursorY += (this.mouseY - this.cursorY) * 0.15;
+                this.cursor.style.left = this.cursorX - 10 + 'px';
+                this.cursor.style.top = this.cursorY - 10 + 'px';
+                this.cursorDot.style.left = this.mouseX - 3 + 'px';
+                this.cursorDot.style.top = this.mouseY - 3 + 'px';
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        // ============================================
+        // HYPER-SPEED ENTRY ANIMATION
+        // ============================================
+        class EntryAnimation {
+            constructor(onComplete) {
+                this.overlay = document.getElementById('entry-overlay');
+                this.speedLines = document.getElementById('speed-lines');
+                this.entryText = document.getElementById('entry-text');
+                this.onComplete = onComplete;
+
+                // Get gallery name from URL params or use default
+                const urlParams = new URLSearchParams(window.location.search);
+                const galleryName = urlParams.get('gallery') || 'Atelier';
+                this.entryText.textContent = `Benvenuto in ${galleryName}`;
+
+                this.createSpeedLines();
+                this.createTunnelRings();
+                this.startAnimation();
+            }
+            createSpeedLines() {
+                for (let i = 0; i < 50; i++) {
+                    const line = document.createElement('div');
+                    line.className = 'speed-line';
+                    line.style.left = Math.random() * 100 + '%';
+                    line.style.animationDelay = Math.random() * 0.5 + 's';
+                    this.speedLines.appendChild(line);
+                }
+            }
+            createTunnelRings() {
+                for (let i = 0; i < 10; i++) {
+                    const ring = document.createElement('div');
+                    ring.className = 'tunnel-ring';
+                    const size = 50 + i * 100;
+                    ring.style.width = size + 'px';
+                    ring.style.height = size + 'px';
+                    ring.style.left = `calc(50% - ${size/2}px)`;
+                    ring.style.top = `calc(50% - ${size/2}px)`;
+                    this.speedLines.appendChild(ring);
+                }
+            }
+            startAnimation() {
+                const speedLines = this.speedLines.querySelectorAll('.speed-line');
+                const tunnelRings = this.speedLines.querySelectorAll('.tunnel-ring');
+                // Animate speed lines
+                speedLines.forEach((line, i) => {
+                    gsap.to(line, {
+                        opacity: 0.8,
+                        scaleY: 3,
+                        duration: 0.5,
+                        delay: i * 0.02,
+                        ease: 'power2.out'
+                    });
+                    gsap.to(line, {
+                        y: '-100vh',
+                        duration: 1,
+                        delay: 0.5 + i * 0.01,
+                        ease: 'power2.in'
+                    });
+                });
+                // Animate tunnel rings
+                tunnelRings.forEach((ring, i) => {
+                    gsap.to(ring, {
+                        opacity: 0.5,
+                        scale: 3,
+                        duration: 0.8,
+                        delay: 0.8 + i * 0.1,
+                        ease: 'power2.out',
+                        onComplete: () => {
+                            gsap.to(ring, {
+                                opacity: 0,
+                                duration: 0.3
+                            });
+                        }
+                    });
+                });
+                // Show entry text
+                gsap.to(this.entryText, {
+                    opacity: 1,
+                    scale: 1.2,
+                    duration: 0.8,
+                    delay: 1,
+                    ease: 'power2.out'
+                });
+                // Zoom text and fade out
+                gsap.to(this.entryText, {
+                    scale: 3,
+                    opacity: 0,
+                    duration: 0.8,
+                    delay: 2,
+                    ease: 'power2.in'
+                });
+                // Fade out overlay
+                gsap.to(this.overlay, {
+                    opacity: 0,
+                    duration: 0.5,
+                    delay: 2.5,
+                    onComplete: () => {
+                        this.overlay.classList.add('hidden');
+                        this.onComplete();
+                    }
+                });
+            }
+        }
+        // ============================================
+        // 3D GALLERY
+        // ============================================
+        class Gallery3D {
+            constructor() {
+                this.canvas = document.getElementById('gallery-canvas');
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(
+                    CONFIG.cameraFOV,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    1000
+                );
+                this.renderer = new THREE.WebGLRenderer({
+                    canvas: this.canvas,
+                    antialias: true,
+                    alpha: true
+                });
+
+                this.artworkMeshes = [];
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+                this.targetRotationX = 0;
+                this.targetRotationY = 0;
+                this.currentRotationX = 0;
+                this.currentRotationY = 0;
+                this.isMouseDown = false;
+                this.lastMouseX = 0;
+                this.lastMouseY = 0;
+                this.hoveredArtwork = null;
+                this.easterEggTimer = null;
+                this.textureLoader = new THREE.TextureLoader();
+                this.lightIntensity = 0.5;
+                this.init();
+            }
+            init() {
+                this.setupRenderer();
+                this.setupCamera();
+                this.setupLights();
+                this.createRoom();
+                this.loadArtworks();
+                this.setupEventListeners();
+                this.animate();
+            }
+            setupRenderer() {
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            }
+            setupCamera() {
+                this.camera.position.set(0, 0, 0);
+                this.cameraGroup = new THREE.Group();
+                this.cameraGroup.add(this.camera);
+                this.scene.add(this.cameraGroup);
+            }
+            setupLights() {
+                // Ambient light
+                this.ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+                this.scene.add(this.ambientLight);
+                // Main directional light
+                this.mainLight = new THREE.DirectionalLight(0xffffff, 0.6);
+                this.mainLight.position.set(0, 8, 0);
+                this.mainLight.castShadow = true;
+                this.scene.add(this.mainLight);
+                // Accent point lights
+                this.accentLights = [];
+                const colors = [0xa855f7, 0x7c3aed, 0xd4af37];
+
+                for (let i = 0; i < 3; i++) {
+                    const light = new THREE.PointLight(colors[i], 0.5, 20);
+                    light.position.set(
+                        Math.cos(i * Math.PI * 2 / 3) * 10,
+                        3,
+                        Math.sin(i * Math.PI * 2 / 3) * 10
+                    );
+                    this.accentLights.push(light);
+                    this.scene.add(light);
+                }
+                // Spotlight that follows mouse
+                this.spotLight = new THREE.SpotLight(0xffffff, 0.3);
+                this.spotLight.position.set(0, 5, 0);
+                this.spotLight.angle = Math.PI / 6;
+                this.spotLight.penumbra = 0.5;
+                this.scene.add(this.spotLight);
+            }
+            createRoom() {
+                const { roomWidth, roomHeight, roomDepth } = CONFIG;
+                // Floor
+                const floorGeometry = new THREE.PlaneGeometry(roomWidth, roomDepth);
+                const floorMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x0a0a0f,
+                    roughness: 0.8,
+                    metalness: 0.2
+                });
+                const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+                floor.rotation.x = -Math.PI / 2;
+                floor.position.y = -roomHeight / 2;
+                floor.receiveShadow = true;
+                this.scene.add(floor);
+                // Ceiling
+                const ceiling = new THREE.Mesh(floorGeometry, floorMaterial);
+                ceiling.rotation.x = Math.PI / 2;
+                ceiling.position.y = roomHeight / 2;
+                this.scene.add(ceiling);
+                // Walls
+                const wallMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x1a1a2e,
+                    roughness: 0.9,
+                    metalness: 0.1
+                });
+                // Back wall
+                const backWall = new THREE.Mesh(
+                    new THREE.PlaneGeometry(roomWidth, roomHeight),
+                    wallMaterial
+                );
+                backWall.position.z = -roomDepth / 2;
+                this.scene.add(backWall);
+                // Left wall
+                const leftWall = new THREE.Mesh(
+                    new THREE.PlaneGeometry(roomDepth, roomHeight),
+                    wallMaterial
+                );
+                leftWall.rotation.y = Math.PI / 2;
+                leftWall.position.x = -roomWidth / 2;
+                this.scene.add(leftWall);
+                // Right wall
+                const rightWall = new THREE.Mesh(
+                    new THREE.PlaneGeometry(roomDepth, roomHeight),
+                    wallMaterial
+                );
+                rightWall.rotation.y = -Math.PI / 2;
+                rightWall.position.x = roomWidth / 2;
+                this.scene.add(rightWall);
+                // Add fog
+                this.scene.fog = new THREE.Fog(0x0a0a0f, 5, 30);
+            }
+            loadArtworks() {
+                // Clear existing
+                this.artworkMeshes.forEach(mesh => {
+                    this.scene.remove(mesh.group);
+                });
+                this.artworkMeshes = [];
+                const positions = this.calculateArtworkPositions(artworks.length);
+                artworks.forEach((artwork, index) => {
+                    this.createArtwork(artwork, positions[index], index);
+                });
+                this.updateArtworkCount();
+            }
+            calculateArtworkPositions(count) {
+                const positions = [];
+                const { roomWidth, roomDepth } = CONFIG;
+                const spacing = 6;
+                // Distribute on walls
+                const wallPositions = [
+                    { wall: 'back', x: 0, z: -roomDepth / 2 + 0.5, rotY: 0 },
+                    { wall: 'left', x: -roomWidth / 2 + 0.5, z: 0, rotY: Math.PI / 2 },
+                    { wall: 'right', x: roomWidth / 2 - 0.5, z: 0, rotY: -Math.PI / 2 }
+                ];
+                let wallIndex = 0;
+                let positionOnWall = 0;
+                const maxPerWall = 4;
+                for (let i = 0; i < count; i++) {
+                    const wall = wallPositions[wallIndex];
+                    const offset = (positionOnWall - (Math.min(count, maxPerWall) - 1) / 2) * spacing;
+                    let x = wall.x;
+                    let z = wall.z;
+                    if (wall.wall === 'back') {
+                        x += offset;
+                    } else {
+                        z += offset;
+                    }
+                    positions.push({
+                        x,
+                        y: 0,
+                        z,
+                        rotY: wall.rotY
+                    });
+                    positionOnWall++;
+                    if (positionOnWall >= maxPerWall) {
+                        positionOnWall = 0;
+                        wallIndex = (wallIndex + 1) % wallPositions.length;
+                    }
+                }
+                return positions;
+            }
+            createArtwork(artworkData, position, index) {
+                const group = new THREE.Group();
+                // Frame
+                const frameWidth = 3;
+                const frameHeight = 2.5;
+                const frameDepth = 0.15;
+                const frameBorder = 0.12;
+                // Outer frame
+                const frameGeometry = new THREE.BoxGeometry(
+                    frameWidth + frameBorder * 2,
+                    frameHeight + frameBorder * 2,
+                    frameDepth
+                );
+                const frameMaterial = new THREE.MeshStandardMaterial({
+                    color: 0xd4af37,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+                frame.castShadow = true;
+                group.add(frame);
+                // Canvas/Image
+                const canvasGeometry = new THREE.PlaneGeometry(frameWidth, frameHeight);
+
+                this.textureLoader.load(
+                    artworkData.url,
+                    (texture) => {
+                        texture.minFilter = THREE.LinearFilter;
+                        const canvasMaterial = new THREE.MeshStandardMaterial({
+                            map: texture,
+                            roughness: 0.5
+                        });
+                        const canvas = new THREE.Mesh(canvasGeometry, canvasMaterial);
+                        canvas.position.z = frameDepth / 2 + 0.01;
+                        group.add(canvas);
+                    },
+                    undefined,
+                    (error) => {
+                        // Fallback color
+                        const canvasMaterial = new THREE.MeshStandardMaterial({
+                            color: 0x333333
+                        });
+                        const canvas = new THREE.Mesh(canvasGeometry, canvasMaterial);
+                        canvas.position.z = frameDepth / 2 + 0.01;
+                        group.add(canvas);
+                    }
+                );
+                // Spotlight for artwork
+                const spotlight = new THREE.SpotLight(0xffffff, 0.5);
+                spotlight.position.set(0, 3, 2);
+                spotlight.target = frame;
+                spotlight.angle = Math.PI / 6;
+                spotlight.penumbra = 0.5;
+                group.add(spotlight);
+                // Position
+                group.position.set(position.x, position.y, position.z);
+                group.rotation.y = position.rotY;
+                this.scene.add(group);
+                this.artworkMeshes.push({
+                    group,
+                    frame,
+                    data: artworkData,
+                    index,
+                    spotlight,
+                    originalIntensity: 0.5
+                });
+            }
+            setupEventListeners() {
+                // Mouse move for camera rotation and light effects
+                document.addEventListener('mousemove', (e) => {
+                    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                    if (this.isMouseDown) {
+                        const deltaX = e.clientX - this.lastMouseX;
+                        const deltaY = e.clientY - this.lastMouseY;
+                        this.targetRotationY -= deltaX * 0.005;
+                        this.targetRotationX -= deltaY * 0.003;
+                        // Clamp vertical rotation
+                        this.targetRotationX = Math.max(-0.5, Math.min(0.5, this.targetRotationX));
+                    }
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                    // Update spotlight position based on mouse
+                    this.spotLight.position.x = this.mouse.x * 10;
+                    this.spotLight.position.z = this.mouse.y * 10;
+                    // Dynamic lighting based on mouse position
+                    this.updateDynamicLighting();
+                });
+                document.addEventListener('mousedown', (e) => {
+                    this.isMouseDown = true;
+                    this.lastMouseX = e.clientX;
+                    this.lastMouseY = e.clientY;
+                });
+                document.addEventListener('mouseup', () => {
+                    this.isMouseDown = false;
+                });
+                // Click for focus mode
+                this.canvas.addEventListener('click', (e) => {
+                    this.checkArtworkClick();
+                });
+                // Resize
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+                // Wheel for zoom
+                this.canvas.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    this.camera.fov += e.deltaY * 0.05;
+                    this.camera.fov = Math.max(40, Math.min(100, this.camera.fov));
+                    this.camera.updateProjectionMatrix();
+                }, { passive: false });
+            }
+            updateDynamicLighting() {
+                // Subtle light intensity changes based on mouse
+                const intensity = 0.4 + Math.abs(this.mouse.x) * 0.3;
+                this.mainLight.intensity = intensity;
+                // Move accent lights slightly
+                this.accentLights.forEach((light, i) => {
+                    const offset = Math.sin(Date.now() * 0.001 + i) * 2;
+                    light.position.y = 3 + this.mouse.y * 2;
+                });
+            }
+            checkArtworkClick() {
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+
+                const meshes = this.artworkMeshes.map(a => a.frame);
+                const intersects = this.raycaster.intersectObjects(meshes);
+                if (intersects.length > 0) {
+                    const clickedFrame = intersects[0].object;
+                    const artwork = this.artworkMeshes.find(a => a.frame === clickedFrame);
+
+                    if (artwork) {
+                        this.openFocusMode(artwork);
+                        this.createClickParticles(intersects[0].point);
+                    }
+                }
+            }
+            checkArtworkHover() {
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+
+                const meshes = this.artworkMeshes.map(a => a.frame);
+                const intersects = this.raycaster.intersectObjects(meshes);
+                // Reset all
+                this.artworkMeshes.forEach(artwork => {
+                    gsap.to(artwork.group.scale, {
+                        x: 1, y: 1, z: 1,
+                        duration: 0.3
+                    });
+                    artwork.spotlight.intensity = artwork.originalIntensity;
+                });
+                if (intersects.length > 0) {
+                    const hoveredFrame = intersects[0].object;
+                    const artwork = this.artworkMeshes.find(a => a.frame === hoveredFrame);
+
+                    if (artwork) {
+                        // Scale up
+                        gsap.to(artwork.group.scale, {
+                            x: 1.05, y: 1.05, z: 1.05,
+                            duration: 0.3,
+                            ease: 'power2.out'
+                        });
+                        // Increase spotlight
+                        artwork.spotlight.intensity = 1;
+                        // Set cursor
+                        window.customCursor?.setHovering(true);
+                        // Easter egg timer
+                        if (this.hoveredArtwork !== artwork) {
+                            this.hoveredArtwork = artwork;
+                            this.startEasterEggTimer(artwork);
+                        }
+                    }
+                } else {
+                    window.customCursor?.setHovering(false);
+                    this.hoveredArtwork = null;
+                    this.clearEasterEggTimer();
+                }
+            }
+            startEasterEggTimer(artwork) {
+                this.clearEasterEggTimer();
+
+                this.easterEggTimer = setTimeout(() => {
+                    this.triggerEasterEgg(artwork);
+                }, CONFIG.easterEggDelay);
+            }
+            clearEasterEggTimer() {
+                if (this.easterEggTimer) {
+                    clearTimeout(this.easterEggTimer);
+                    this.easterEggTimer = null;
+                }
+            }
+            triggerEasterEgg(artwork) {
+                // Subtle animation on the artwork
+                gsap.to(artwork.group.rotation, {
+                    z: 0.02,
+                    duration: 2,
+                    yoyo: true,
+                    repeat: 3,
+                    ease: 'sine.inOut'
+                });
+                // Glow effect
+                const glow = document.getElementById('easter-glow');
+                const rect = this.canvas.getBoundingClientRect();
+                const vector = artwork.group.position.clone();
+                vector.project(this.camera);
+
+                glow.style.left = ((vector.x + 1) / 2 * rect.width - 150) + 'px';
+                glow.style.top = ((-vector.y + 1) / 2 * rect.height - 150) + 'px';
+                glow.style.opacity = '1';
+                setTimeout(() => {
+                    glow.style.opacity = '0';
+                }, 3000);
+                // Change lighting color temporarily
+                const originalColor = this.accentLights[0].color.getHex();
+                this.accentLights.forEach(light => {
+                    gsap.to(light.color, {
+                        r: 1,
+                        g: 0.8,
+                        b: 0.2,
+                        duration: 1,
+                        yoyo: true,
+                        repeat: 1
+                    });
+                });
+            }
+            createClickParticles(point) {
+                const particleCount = 20;
+
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'ambient-particle';
+
+                    const vector = point.clone();
+                    vector.project(this.camera);
+
+                    const x = (vector.x + 1) / 2 * window.innerWidth;
+                    const y = (-vector.y + 1) / 2 * window.innerHeight;
+
+                    particle.style.left = x + 'px';
+                    particle.style.top = y + 'px';
+                    document.body.appendChild(particle);
+                    gsap.to(particle, {
+                        x: (Math.random() - 0.5) * 200,
+                        y: (Math.random() - 0.5) * 200,
+                        opacity: 0,
+                        scale: 0,
+                        duration: 1,
+                        ease: 'power2.out',
+                        onComplete: () => particle.remove()
+                    });
+                }
+            }
+            openFocusMode(artwork) {
+                const overlay = document.getElementById('focus-overlay');
+                const image = document.getElementById('focus-image');
+                const title = document.getElementById('focus-title');
+                const artist = document.getElementById('focus-artist');
+                image.src = artwork.data.url;
+                title.textContent = artwork.data.title;
+                artist.textContent = artwork.data.artist;
+                overlay.classList.add('active');
+            }
+            updateArtworkCount() {
+                document.getElementById('artwork-count').textContent = artworks.length;
+            }
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                // Smooth camera rotation
+                this.currentRotationY += (this.targetRotationY - this.currentRotationY) * 0.05;
+                this.currentRotationX += (this.targetRotationX - this.currentRotationX) * 0.05;
+                this.cameraGroup.rotation.y = this.currentRotationY;
+                this.cameraGroup.rotation.x = this.currentRotationX;
+                // Check artwork hover
+                this.checkArtworkHover();
+                // Animate accent lights
+                this.accentLights.forEach((light, i) => {
+                    light.position.x = Math.cos(Date.now() * 0.0005 + i * Math.PI * 2 / 3) * 10;
+                    light.position.z = Math.sin(Date.now() * 0.0005 + i * Math.PI * 2 / 3) * 10;
+                });
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+        // ============================================
+        // ADMIN PANEL
+        // ============================================
+        class AdminPanel {
+            constructor(gallery) {
+                this.gallery = gallery;
+                this.panel = document.getElementById('admin-panel');
+                this.isOpen = false;
+
+                this.setupEventListeners();
+                this.renderArtworkList();
+            }
+            setupEventListeners() {
+                // Toggle with 'A' key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key.toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey) {
+                        const activeElement = document.activeElement;
+                        if (activeElement.tagName !== 'INPUT') {
+                            this.toggle();
+                        }
+                    }
+                });
+                // Close button
+                document.getElementById('admin-close').addEventListener('click', () => {
+                    this.close();
+                });
+                // Add artwork
+                document.getElementById('add-artwork').addEventListener('click', () => {
+                    this.addArtwork();
+                });
+                // Enter key in inputs
+                document.querySelectorAll('.admin-input').forEach(input => {
+                    input.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            this.addArtwork();
+                        }
+                    });
+                });
+            }
+            toggle() {
+                this.isOpen ? this.close() : this.open();
+            }
+            open() {
+                this.panel.classList.add('open');
+                this.isOpen = true;
+            }
+            close() {
+                this.panel.classList.remove('open');
+                this.isOpen = false;
+            }
+            addArtwork() {
+                const url = document.getElementById('artwork-url').value.trim();
+                const title = document.getElementById('artwork-title').value.trim() || 'Senza Titolo';
+                const artist = document.getElementById('artwork-artist').value.trim() || 'Artista Sconosciuto';
+                if (!url) {
+                    this.showError('Inserisci un URL valido');
+                    return;
+                }
+                const newArtwork = { url, title, artist };
+                artworks.push(newArtwork);
+                // Save to localStorage
+                localStorage.setItem('galleryArtworks', JSON.stringify(artworks));
+                // Reload gallery
+                this.gallery.loadArtworks();
+                // Clear inputs
+                document.getElementById('artwork-url').value = '';
+                document.getElementById('artwork-title').value = '';
+                document.getElementById('artwork-artist').value = '';
+                // Update list
+                this.renderArtworkList();
+                // Visual feedback
+                this.showSuccess('Opera aggiunta con successo!');
+            }
+            removeArtwork(index) {
+                artworks.splice(index, 1);
+                localStorage.setItem('galleryArtworks', JSON.stringify(artworks));
+                this.gallery.loadArtworks();
+                this.renderArtworkList();
+            }
+            renderArtworkList() {
+                const list = document.getElementById('artwork-list');
+                list.innerHTML = '';
+                artworks.forEach((artwork, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'artwork-item';
+                    item.innerHTML = `
+                        <img class="artwork-thumb" src="${artwork.url}" alt="${artwork.title}"
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22><rect fill=%22%23333%22 width=%22100%22 height=%22100%22/></svg>'">
+                        <div class="artwork-details">
+                            <div class="artwork-name">${artwork.title}</div>
+                            <div style="font-size: 12px; color: rgba(255,255,255,0.5);">${artwork.artist}</div>
+                        </div>
+                        <button class="artwork-remove" data-index="${index}">×</button>
+                    `;
+                    list.appendChild(item);
+                });
+                // Add remove event listeners
+                list.querySelectorAll('.artwork-remove').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const index = parseInt(e.target.dataset.index);
+                        this.removeArtwork(index);
+                    });
+                });
+            }
+            showSuccess(message) {
+                const toast = document.getElementById('instruction-toast');
+                toast.textContent = '✓ ' + message;
+                toast.style.borderColor = 'rgba(34, 197, 94, 0.5)';
+                toast.classList.add('visible');
+                setTimeout(() => {
+                    toast.classList.remove('visible');
+                    toast.style.borderColor = '';
+                }, 2000);
+            }
+            showError(message) {
+                const toast = document.getElementById('instruction-toast');
+                toast.textContent = '✗ ' + message;
+                toast.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                toast.classList.add('visible');
+                setTimeout(() => {
+                    toast.classList.remove('visible');
+                    toast.style.borderColor = '';
+                }, 2000);
+            }
+        }
+        // ============================================
+        // FOCUS MODE
+        // ============================================
+        class FocusMode {
+            constructor() {
+                this.overlay = document.getElementById('focus-overlay');
+                this.closeBtn = document.getElementById('focus-close');
+
+                this.setupEventListeners();
+            }
+            setupEventListeners() {
+                this.closeBtn.addEventListener('click', () => this.close());
+
+                this.overlay.addEventListener('click', (e) => {
+                    if (e.target === this.overlay) {
+                        this.close();
+                    }
+                });
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        this.close();
+                    }
+                });
+            }
+            close() {
+                this.overlay.classList.remove('active');
+            }
+        }
+        // ============================================
+        // AMBIENT PARTICLES
+        // ============================================
+        class AmbientParticles {
+            constructor() {
+                this.particles = [];
+                this.createParticles();
+                this.animate();
+            }
+            createParticles() {
+                for (let i = 0; i < 30; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'ambient-particle';
+                    particle.style.left = Math.random() * 100 + '%';
+                    particle.style.top = Math.random() * 100 + '%';
+                    particle.style.animationDelay = Math.random() * 5 + 's';
+                    document.body.appendChild(particle);
+                    this.particles.push({
+                        el: particle,
+                        x: Math.random() * window.innerWidth,
+                        y: Math.random() * window.innerHeight,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: (Math.random() - 0.5) * 0.5
+                    });
+                }
+            }
+            animate() {
+                this.particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    // Bounce off edges
+                    if (p.x < 0 || p.x > window.innerWidth) p.vx *= -1;
+                    if (p.y < 0 || p.y > window.innerHeight) p.vy *= -1;
+                    p.el.style.left = p.x + 'px';
+                    p.el.style.top = p.y + 'px';
+                });
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        let gallery, adminPanel;
+        document.addEventListener('DOMContentLoaded', () => {
+            // Custom cursor
+            window.customCursor = new CustomCursor();
+            // Hide default cursor
+            document.body.style.cursor = 'none';
+            // Entry animation
+            new EntryAnimation(() => {
+                // Show UI
+                document.getElementById('ui-overlay').classList.add('visible');
+                // Initialize gallery
+                gallery = new Gallery3D();
+                // Initialize admin panel
+                adminPanel = new AdminPanel(gallery);
+                // Focus mode
+                new FocusMode();
+                // Ambient particles
+                new AmbientParticles();
+                // Show instruction toast
+                const toast = document.getElementById('instruction-toast');
+                toast.classList.add('visible');
+                setTimeout(() => {
+                    toast.classList.remove('visible');
+                }, 4000);
+            });
+            // Back button
+            document.getElementById('back-btn').addEventListener('click', () => {
+                // Fade out effect
+                gsap.to('body', {
+                    opacity: 0,
+                    duration: 0.5,
+                    onComplete: () => {
+                        // Go back or to homepage
+                        if (document.referrer && document.referrer.includes(window.location.host)) {
+                            window.history.back();
+                        } else {
+                            window.location.href = 'index.html';
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
